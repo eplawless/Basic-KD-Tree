@@ -7,6 +7,13 @@
 // Forward Declarations
 class KDTreeImpl;
 
+// Result of KDTree::getClosestPoint()
+struct KDTreeClosestPoint
+{
+	V3x point;
+	fpreal distance;
+};
+
 class KDTree : public Uncopyable 
 {
 public: // methods
@@ -14,6 +21,9 @@ public: // methods
 	~KDTree();
 
 	bool isBalanced() const;
+	bool getClosestPoint(
+		const V3x& point,
+		KDTreeClosestPoint& out_result) const;
 	void dump(ostream& out) const;
 
 private: // members

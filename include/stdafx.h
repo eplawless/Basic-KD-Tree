@@ -25,6 +25,7 @@ typedef Vec4<fpreal> V4x;
 #include <map>
 #include <iterator>
 #include <limits>
+#include <exception>
 using namespace std;
 
 // C Includes
@@ -40,7 +41,7 @@ using namespace std;
 #include "uncopyable.h"
 #include "timer.h"
 #include "UnitTest.h"
-#define UNUSED(a)
+#define UNUSED(a) (a)
 
 #undef min
 #undef max

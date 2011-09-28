@@ -14,48 +14,35 @@ enum KDTreeNodeAxis
 static const size_t IDX_NONE = numeric_limits<size_t>::max();
 
 class KDTreeNode;
-typedef vector<unique_ptr<KDTreeNode> > KDTreeNodePtrList;
+typedef vector<KDTreeNode> KDTreeNodeList;
 
-/// KD Tree Node
-class KDTreeNode 
+/// KD Tree Inner Node
+class KDTreeNode
 {
 public: // methods
 	KDTreeNode(
-		size_t idxPoint,
-		KDTreeNodeAxis axis);
-	virtual ~KDTreeNode() {}
-
-	size_t getIdxPoint() const { return m_idxPoint; }
-	KDTreeNodeAxis getAxis() const { return m_axis; }
-	virtual size_t getSize(const KDTreeNodePtrList&) const { return 1; }
-
-	virtual bool isBalanced(const KDTreeNodePtrList& arrpNodes) const;
-	virtual void dump(const vector<V3x>& arrPoints, ostream& out) const;
-
-protected: // members
-	KDTreeNodeAxis m_axis;
-	size_t m_idxPoint;
-};
-
-/// KD Tree Inner Node
-class KDTreeInnerNode : public KDTreeNode 
-{
-public: // methods
-	KDTreeInnerNode(
 		size_t idxPoint,
 		size_t idxLeft,
 		size_t idxRight,
 		KDTreeNodeAxis axis);
 
-	size_t getIdxLeft() { return m_idxLeft; }
-	size_t getIdxRight() { return m_idxRight; }
+	size_t			getIdxPoint() const { return m_idxPoint; }
+	KDTreeNodeAxis	getAxis() const		{ return m_axis; }
+	size_t			getIdxLeft()		{ return m_idxLeft; }
+	size_t			getIdxRight()		{ return m_idxRight; }
 
-	virtual size_t getSize(const KDTreeNodePtrList& arrpNodes) const;
+	bool getClosestPoint(
+		const V3x& point,
+		KDTreeClosestPoint& out_result) const;
 
-	virtual bool isBalanced(const KDTreeNodePtrList& arrpNodes) const;
-	virtual void dump(const vector<V3x>& arrPoints, ostream& out) const;
+	size_t			getSize(const KDTreeNodeList& arrNodes) const;
+	bool			isBalanced(const KDTreeNodeList& arrNodes) const;
+
+	void dump(const vector<V3x>& arrPoints, ostream& out) const;
 
 private: // members
+	KDTreeNodeAxis m_axis;
+	size_t m_idxPoint;
 	size_t m_idxLeft;
 	size_t m_idxRight;
 };
@@ -72,12 +59,15 @@ public: // methods
 		KDTreeNodeAxis axis);
 
 	bool isBalanced() const;
+	bool getClosestPoint(
+		const V3x& point,
+		KDTreeClosestPoint& out_result) const;
 
 	void dump(ostream& out = cerr) const;
 
 private: // methods
 
-	KDTreeNode* getRootNode() const;
+	const KDTreeNode* getRootNode() const;
 
 	inline size_t partitionAroundMedian(
 		size_t idxBegin,
@@ -85,7 +75,7 @@ private: // methods
 		KDTreeNodeAxis axis);
 
 private: // members
-	KDTreeNodePtrList m_arrpNodes;
+	KDTreeNodeList m_arrNodes;
 	vector<V3x> m_arrPoints;
 };
 
@@ -93,45 +83,17 @@ private: // members
 // KDTreeNode Methods
 ////////////////////////////////////////////////////////////////////////////////
 
-KDTreeNode::KDTreeNode(size_t idxPoint, KDTreeNodeAxis axis)
-	: m_idxPoint(idxPoint)
-	, m_axis(axis)
-{
-	assert(m_idxPoint != IDX_NONE);
-}
-
-void
-KDTreeNode::dump(const vector<V3x>& arrPoints, ostream& out) const
-{
-	assert(arrPoints.size() > m_idxPoint);
-
-	switch (m_axis) {
-	case X_AXIS: out << "X AXIS"; break;
-	case Y_AXIS: out << "Y AXIS"; break;
-	case Z_AXIS: out << "Z AXIS"; break;
-	}
-	out << ", POINT " << m_idxPoint << ": " << arrPoints[m_idxPoint] << "\n";
-}
-
-bool
-KDTreeNode::isBalanced(const KDTreeNodePtrList&) const
-{
-	return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// KDTreeInnerNode Methods
-////////////////////////////////////////////////////////////////////////////////
-
-KDTreeInnerNode::KDTreeInnerNode(
+KDTreeNode::KDTreeNode(
 	size_t idxPoint,
 	size_t idxLeft,
 	size_t idxRight,
 	KDTreeNodeAxis axis)
-	: KDTreeNode(idxPoint, axis)
+	: m_idxPoint(idxPoint)
 	, m_idxLeft(idxLeft)
 	, m_idxRight(idxRight)
+	, m_axis(axis)
 {
+	assert(m_idxPoint != IDX_NONE);
 }
 
 static string
@@ -146,17 +108,24 @@ getIdxString(size_t idx)
 }
 
 void
-KDTreeInnerNode::dump(const vector<V3x>& arrPoints, ostream& out) const
+KDTreeNode::dump(const vector<V3x>& arrPoints, ostream& out) const
 {
-	KDTreeNode::dump(arrPoints, out);
+	assert(arrPoints.size() > m_idxPoint);
+
+	switch (m_axis) {
+	case X_AXIS: out << "X AXIS"; break;
+	case Y_AXIS: out << "Y AXIS"; break;
+	case Z_AXIS: out << "Z AXIS"; break;
+	}
+	out << ", POINT " << m_idxPoint << ": " << arrPoints[m_idxPoint] << "\n";
 	out << "  CHILDREN: " << getIdxString(m_idxLeft) << " "
 		<< getIdxString(m_idxRight) << "\n";
 }
 
 static inline size_t
-getChildSize(const KDTreeNodePtrList& arrpNodes, size_t idx)
+getChildSize(const KDTreeNodeList& arrNodes, size_t idx)
 {
-	return (idx == IDX_NONE) ? 0 : arrpNodes[idx]->getSize(arrpNodes);
+	return (idx == IDX_NONE) ? 0 : arrNodes[idx].getSize(arrNodes);
 }
 
 static inline bool
@@ -166,29 +135,40 @@ sizesAreBalanced(size_t leftSize, size_t rightSize)
 }
 
 static inline bool
-subtreeIsBalanced(size_t size, size_t idx, const KDTreeNodePtrList& arrpNodes)
+subtreeIsBalanced(size_t size, size_t idx, const KDTreeNodeList& arrNodes)
 {
-	return (size == 0) ? true : arrpNodes[idx]->isBalanced(arrpNodes);
+	return (size == 0) ? true : arrNodes[idx].isBalanced(arrNodes);
 }
 
 bool
-KDTreeInnerNode::isBalanced(const KDTreeNodePtrList& arrpNodes) const
+KDTreeNode::isBalanced(const KDTreeNodeList& arrNodes) const
 {
-	size_t leftSize = getChildSize(arrpNodes, m_idxLeft);
-	size_t rightSize = getChildSize(arrpNodes, m_idxRight);
+	size_t leftSize = getChildSize(arrNodes, m_idxLeft);
+	size_t rightSize = getChildSize(arrNodes, m_idxRight);
 	if (!sizesAreBalanced(leftSize, rightSize))
 		return false;
 
-	return subtreeIsBalanced(leftSize, m_idxLeft, arrpNodes)
-		&& subtreeIsBalanced(rightSize, m_idxRight, arrpNodes);
+	return subtreeIsBalanced(leftSize, m_idxLeft, arrNodes)
+		&& subtreeIsBalanced(rightSize, m_idxRight, arrNodes);
 }
 
 size_t
-KDTreeInnerNode::getSize(const KDTreeNodePtrList& arrpNodes) const
+KDTreeNode::getSize(const KDTreeNodeList& arrNodes) const
 {
-	return 1 + getChildSize(arrpNodes, m_idxLeft) 
-		+ getChildSize(arrpNodes, m_idxRight);
+	return 1 + getChildSize(arrNodes, m_idxLeft) 
+		+ getChildSize(arrNodes, m_idxRight);
 }
+
+bool
+KDTreeNode::getClosestPoint(
+	const V3x& point,
+	KDTreeClosestPoint& out_result) const
+{
+	// TODO: implement
+	UNUSED(point);
+	UNUSED(out_result);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // KDTreeImpl Methods
@@ -201,7 +181,7 @@ KDTreeImpl::KDTreeImpl(const vector<V3x>& arrPoints)
 	: m_arrPoints(arrPoints)
 {
 	size_t numPoints = m_arrPoints.size();
-	m_arrpNodes.reserve(numPoints);
+	m_arrNodes.reserve(numPoints);
 	buildTree(0, numPoints, X_AXIS);
 }
 
@@ -242,10 +222,10 @@ KDTreeImpl::buildTree(
 	size_t size = idxEnd - idxBegin;
 	if (size == 1) {
 		g_allocTimer.start();
-		m_arrpNodes.emplace_back(unique_ptr<KDTreeNode>(
-			new KDTreeNode(idxBegin, axis)));
+		m_arrNodes.emplace_back(
+			KDTreeNode(idxBegin, IDX_NONE, IDX_NONE, axis));
 		g_allocTimer.stop();
-		return m_arrpNodes.size()-1;
+		return m_arrNodes.size()-1;
 	}
 
 	KDTreeNodeAxis nextAxis = static_cast<KDTreeNodeAxis>((axis + 1) % 3);
@@ -254,10 +234,10 @@ KDTreeImpl::buildTree(
 	size_t idxRight = buildTree(idxMedian+1, idxEnd, nextAxis);
 
 	g_allocTimer.start();
-	m_arrpNodes.emplace_back(unique_ptr<KDTreeNode>(
-		new KDTreeInnerNode(idxMedian, idxLeft, idxRight, axis)));
+	m_arrNodes.emplace_back(
+		KDTreeNode(idxMedian, idxLeft, idxRight, axis));
 	g_allocTimer.stop();
-	return m_arrpNodes.size()-1;
+	return m_arrNodes.size()-1;
 }
 
 void
@@ -265,15 +245,15 @@ KDTreeImpl::dump(ostream& out) const
 {
 	out << "== KD TREE IMPLEMENTATION ====\n";
 	out << "POINT COUNT: " << m_arrPoints.size() << "\n";
-	out << "NODE COUNT: " << m_arrpNodes.size() << "\n\n";
+	out << "NODE COUNT: " << m_arrNodes.size() << "\n\n";
 
 	out << "-- NODES ----\n";
-	auto itBegin = begin(m_arrpNodes);
-	auto itEnd = end(m_arrpNodes);
+	auto itBegin = begin(m_arrNodes);
+	auto itEnd = end(m_arrNodes);
 	int idxNode = 0;
-	for_each(itBegin, itEnd, [&](const unique_ptr<KDTreeNode>& pNode) {
+	for_each(itBegin, itEnd, [&](const KDTreeNode& node) {
 		out << idxNode << ": ";
-		pNode->dump(m_arrPoints, out);
+		node.dump(m_arrPoints, out);
 		++idxNode;
 	});
 
@@ -283,21 +263,33 @@ KDTreeImpl::dump(ostream& out) const
 bool
 KDTreeImpl::isBalanced() const
 {
-	if (m_arrpNodes.size() <= 2)
+	if (m_arrNodes.size() <= 2)
 		return true;
 
-	KDTreeNode* pRoot = getRootNode();
+	const KDTreeNode* pRoot = getRootNode();
 	assert(pRoot != NULL);
-	return pRoot->isBalanced(m_arrpNodes);
+	return pRoot->isBalanced(m_arrNodes);
 }
 
-KDTreeNode*
+const KDTreeNode*
 KDTreeImpl::getRootNode() const
 {
-	if (m_arrpNodes.empty())
+	if (m_arrNodes.empty())
 		return NULL;
-	return m_arrpNodes.back().get();
+	return &m_arrNodes.back();
 }
+
+bool
+KDTreeImpl::getClosestPoint(
+	const V3x& point,
+	KDTreeClosestPoint& out_result) const
+{
+	const KDTreeNode* pRootNode = getRootNode();
+	if (pRootNode == NULL)
+		return false;
+	return pRootNode->getClosestPoint(point, out_result);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // KDTree Methods
@@ -367,6 +359,14 @@ bool
 KDTree::isBalanced() const
 {
 	return m_pImpl->isBalanced();
+}
+
+bool
+KDTree::getClosestPoint(
+	const V3x& point,
+	KDTreeClosestPoint& out_result) const
+{
+	return m_pImpl->getClosestPoint(point, out_result);
 }
 
 #pragma warning(pop)
