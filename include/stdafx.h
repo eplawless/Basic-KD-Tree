@@ -24,6 +24,7 @@ typedef Vec4<fpreal> V4x;
 #include <vector>
 #include <map>
 #include <iterator>
+#include <limits>
 using namespace std;
 
 // C Includes
@@ -35,6 +36,10 @@ using namespace std;
 
 // Utility Includes
 #include "uncopyable.h"
+#include "UnitTest.h"
 #define UNUSED(a)
+
+#undef min
+#undef max
 
 #endif // EPL_STDAFX_H_

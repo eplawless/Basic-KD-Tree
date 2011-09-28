@@ -12,6 +12,8 @@ public: // methods
 	KDTree(const vector<V3x>& arrPoints);
 	~KDTree();
 
+	void dump(ostream& out) const;
+
 private: // members
 	KDTreeImpl* m_pImpl;
 };

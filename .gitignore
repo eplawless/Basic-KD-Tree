@@ -29,6 +29,7 @@ obj/
 [Bb]in
 [Dd]ebug*/
 [Rr]elease*/
+[Tt]est*/
 Ankh.NoLoad
 
 #Tooling
