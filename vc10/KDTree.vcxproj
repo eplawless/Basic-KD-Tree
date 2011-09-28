@@ -120,10 +120,12 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Test|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="..\src\timer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\kdtree.h" />
     <ClInclude Include="..\include\stdafx.h" />
+    <ClInclude Include="..\include\timer.h" />
     <ClInclude Include="..\include\uncopyable.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -28,6 +28,8 @@ typedef Vec4<fpreal> V4x;
 using namespace std;
 
 // C Includes
+#include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <cassert>
 
@@ -36,6 +38,7 @@ using namespace std;
 
 // Utility Includes
 #include "uncopyable.h"
+#include "timer.h"
 #include "UnitTest.h"
 #define UNUSED(a)
 

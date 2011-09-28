@@ -23,6 +23,9 @@
     <ClCompile Include="..\src\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\timer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\kdtree.h">
@@ -32,6 +35,9 @@
       <Filter>PCH</Filter>
     </ClInclude>
     <ClInclude Include="..\include\uncopyable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\timer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

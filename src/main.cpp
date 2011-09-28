@@ -9,9 +9,6 @@ wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
 }
 
 UNIT_TEST_HOOKS;
-int main() {
-	RUN_UNIT_TESTS;
-	return 0;
-}
+int main() { RUN_UNIT_TESTS; }
 
 #pragma warning(pop)

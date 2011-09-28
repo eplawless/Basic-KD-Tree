@@ -7,11 +7,13 @@
 // Forward Declarations
 class KDTreeImpl;
 
-class KDTree : public Uncopyable {
+class KDTree : public Uncopyable 
+{
 public: // methods
 	KDTree(const vector<V3x>& arrPoints);
 	~KDTree();
 
+	bool isBalanced() const;
 	void dump(ostream& out) const;
 
 private: // members
