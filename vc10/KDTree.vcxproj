@@ -87,6 +87,7 @@
   <ItemGroup>
     <ClInclude Include="..\include\kdtree.h" />
     <ClInclude Include="..\include\stdafx.h" />
+    <ClInclude Include="..\include\uncopyable.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

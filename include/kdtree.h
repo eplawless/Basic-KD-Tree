@@ -4,6 +4,16 @@
 
 #include "stdafx.h"
 
+// Forward Declarations
+class KDTreeImpl;
 
+class KDTree : public Uncopyable {
+public: // methods
+	KDTree(const vector<V3x>& arrPoints);
+	~KDTree();
+
+private: // members
+	KDTreeImpl* m_pImpl;
+};
 
 #endif // EPL_KDTREE_H_

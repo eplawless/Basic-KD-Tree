@@ -31,5 +31,8 @@
     <ClInclude Include="..\include\stdafx.h">
       <Filter>PCH</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\uncopyable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
