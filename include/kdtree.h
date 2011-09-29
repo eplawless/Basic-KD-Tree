@@ -5,7 +5,7 @@
 #include "stdafx.h"
 
 // Forward Declarations
-class KDTreeImpl;
+class PointKDTreeImpl;
 
 // Result of KDTree::getClosestPoint()
 struct KDTreeClosestPoint
@@ -14,11 +14,11 @@ struct KDTreeClosestPoint
 	fpreal distance;
 };
 
-class KDTree : public Uncopyable 
+class PointKDTree : public Uncopyable 
 {
 public: // methods
-	KDTree(const vector<V3x>& arrPoints);
-	~KDTree();
+	PointKDTree(const vector<V3x>& arrPoints);
+	~PointKDTree();
 
 	bool isBalanced() const;
 	bool getClosestPoint(
@@ -27,7 +27,7 @@ public: // methods
 	void dump(ostream& out) const;
 
 private: // members
-	KDTreeImpl* m_pImpl;
+	PointKDTreeImpl* m_pImpl;
 };
 
 #endif // EPL_KDTREE_H_

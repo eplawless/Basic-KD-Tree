@@ -33,6 +33,7 @@ using namespace std;
 #include <cstring>
 #include <ctime>
 #include <cassert>
+#include <cstdint>
 
 // OS Includes
 #include <Windows.h>
