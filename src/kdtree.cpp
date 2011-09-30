@@ -12,25 +12,43 @@ enum KDTreeNodeAxis
 };
 
 /// @{
+/// Helper Macros for Dynamic Index Precision
+/// NOTE: these helpers must all be changed to add/remove an index precision
+#define KD_TREE_EMPTY_ARGUMENT
+#define KD_TREE_FOREACH_IDX_SIZE(macro) \
+	macro(8) \
+	macro(16) \
+	macro(32) \
+	macro(64)
+#define KD_TREE_FOREACH_IDX_SIZE_ARG1(macro, arg) \
+	macro(8, arg) \
+	macro(16, arg) \
+	macro(32, arg) \
+	macro(64, arg)
+#define KD_TREE_FOREACH_IDX_SIZE_ARG2(macro, arg1, arg2) \
+	macro(8, arg1, arg2) \
+	macro(16, arg1, arg2) \
+	macro(32, arg1, arg2) \
+	macro(64, arg1, arg2)
+/// @}
+
+/// @{
 /// Invalid Index
 template <typename uint_t>
 struct InvalidIndex {
 	static const uint_t value = 0;
 };
 
-#define KD_TREE_INVALID_INDEX(bits) \
+#define KD_TREE_INVALID_IDX(bits) \
 	template <> \
 	struct InvalidIndex<uint##bits##_t> { \
 		static const uint##bits##_t value = UINT##bits##_MAX; \
 	};
 
-KD_TREE_INVALID_INDEX(8)
-KD_TREE_INVALID_INDEX(16)
-KD_TREE_INVALID_INDEX(32)
-KD_TREE_INVALID_INDEX(64)
+KD_TREE_FOREACH_IDX_SIZE(KD_TREE_INVALID_IDX)
 /// @}
 
-/// KD Tree Inner Node
+/// KD Tree Node
 template <typename uint_t>
 class KDTreeNode
 {
@@ -49,7 +67,7 @@ public: // methods
 	uint_t			getIdxLeft()		{ return m_idxLeft; }
 	uint_t			getIdxRight()		{ return m_idxRight; }
 
-	bool getClosestPoint(
+	bool getClosestPointTo(
 		const V3x& point,
 		KDTreeClosestPoint& out_result) const;
 
@@ -65,16 +83,16 @@ private: // members
 	uint_t m_idxRight;
 };
 
+#define DEFINE_IDX_TYPE(bits) \
+	IDX_TYPE_##bits,
+
 enum KDTreeIndexType
 {
-	IDX_TYPE_8,
-	IDX_TYPE_16,
-	IDX_TYPE_32,
-	IDX_TYPE_64,
+	KD_TREE_FOREACH_IDX_SIZE(DEFINE_IDX_TYPE)
 	IDX_TYPE_INVALID
 };
 
-/// KD Tree Templated Implementation 
+/// KD Tree Actual Implementation 
 template <typename uint_t>
 class PointKDTreeImplImpl 
 {
@@ -90,7 +108,7 @@ public: // methods
 		KDTreeNodeAxis axis);
 
 	bool isBalanced() const;
-	bool getClosestPoint(
+	bool getClosestPointTo(
 		const V3x& point,
 		KDTreeClosestPoint& out_result) const;
 
@@ -117,17 +135,18 @@ public: // methods
 	PointKDTreeImpl(const vector<V3x>& arrPoints);
 
 	bool isBalanced() const;
-	bool getClosestPoint(
+	bool getClosestPointTo(
 		const V3x& point,
 		KDTreeClosestPoint& out_result) const;
 	void dump(ostream& out) const;
 
 private: // members
 	KDTreeIndexType m_idxType;
-	unique_ptr<PointKDTreeImplImpl<uint64_t> > m_pImpl64;
-	unique_ptr<PointKDTreeImplImpl<uint32_t> > m_pImpl32;
-	unique_ptr<PointKDTreeImplImpl<uint16_t> > m_pImpl16;
-	unique_ptr<PointKDTreeImplImpl<uint8_t> > m_pImpl8;
+
+#define KD_TREE_IMPL_MEMBER_PTR(bits) \
+	unique_ptr<PointKDTreeImplImpl<uint##bits##_t> > m_pImpl##bits;
+
+	KD_TREE_FOREACH_IDX_SIZE(KD_TREE_IMPL_MEMBER_PTR)
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,7 +248,7 @@ KDTreeNode<uint_t>::getSize(const KDTreeNodeList& arrNodes) const
 
 template <typename uint_t>
 bool
-KDTreeNode<uint_t>::getClosestPoint(
+KDTreeNode<uint_t>::getClosestPointTo(
 	const V3x& point,
 	KDTreeClosestPoint& out_result) const
 {
@@ -242,67 +261,60 @@ KDTreeNode<uint_t>::getClosestPoint(
 // PointKDTreeImpl Methods
 ////////////////////////////////////////////////////////////////////////////////
 
-#define KD_TREE_FITS_IN_IDX_SIZE(bits) \
+#define KD_TREE_IDX_SIZE_IS_ENOUGH(bits) \
 	numPoints < numeric_limits<uint##bits##_t>::max()
-#define KD_TREE_INIT_IDX_SIZE(bits) \
-	m_pImpl##bits.reset(new PointKDTreeImplImpl<uint##bits##_t>(arrPoints)); \
-	m_idxType = IDX_TYPE_##bits;
+#define KD_TREE_INIT_IMPL(bits) \
+	if (KD_TREE_IDX_SIZE_IS_ENOUGH(bits)) { \
+		m_pImpl##bits.reset( \
+			new PointKDTreeImplImpl<uint##bits##_t>(arrPoints)); \
+		m_idxType = IDX_TYPE_##bits; \
+		return; \
+	}
 
 PointKDTreeImpl::PointKDTreeImpl(const vector<V3x>& arrPoints)
 	: m_idxType(IDX_TYPE_INVALID)
 {
 	size_t numPoints = arrPoints.size();
-
-	// Use the smallest possible index size
-	if (KD_TREE_FITS_IN_IDX_SIZE(8)) {
-		KD_TREE_INIT_IDX_SIZE(8)
-	} else if (KD_TREE_FITS_IN_IDX_SIZE(16)) {
-		KD_TREE_INIT_IDX_SIZE(16)
-	} else if (KD_TREE_FITS_IN_IDX_SIZE(32)) {
-		KD_TREE_INIT_IDX_SIZE(32)
-	} else if (KD_TREE_FITS_IN_IDX_SIZE(64)) {
-		KD_TREE_INIT_IDX_SIZE(64)
-	} 
+	KD_TREE_FOREACH_IDX_SIZE(KD_TREE_INIT_IMPL)
 }
+
+#define KD_TREE_IMPL_CALL_HELPER(bits, prefix, call) \
+	case IDX_TYPE_##bits: prefix m_pImpl##bits->call; break; \
 
 #define KD_TREE_IMPL_CALL_IMPL(prefix, call) \
 	switch (m_idxType) { \
-	case IDX_TYPE_8: prefix m_pImpl8->call; break; \
-	case IDX_TYPE_16: prefix m_pImpl16->call; break; \
-	case IDX_TYPE_32: prefix m_pImpl32->call; break; \
-	case IDX_TYPE_64: prefix m_pImpl64->call; break; \
+	KD_TREE_FOREACH_IDX_SIZE_ARG2(KD_TREE_IMPL_CALL_HELPER, prefix, call) \
 	default: assert(false && "internal KD tree error"); exit(1); \
 	}
 
-#define KD_TREE_IMPL_RETURN_CALL(call) \
+#define KD_TREE_IMPL_CALL_RETURN(call) \
 	KD_TREE_IMPL_CALL_IMPL(return, call)
 
-#define KD_TREE_NOTHING
 #define KD_TREE_IMPL_CALL(call) \
-	KD_TREE_IMPL_CALL_IMPL(KD_TREE_NOTHING, call)
+	KD_TREE_IMPL_CALL_IMPL(KD_TREE_EMPTY_ARGUMENT, call)
 
 bool
 PointKDTreeImpl::isBalanced() const
 {
-	KD_TREE_IMPL_RETURN_CALL(isBalanced());
+	KD_TREE_IMPL_CALL_RETURN(isBalanced());
 }
 
 bool
-PointKDTreeImpl::getClosestPoint(
+PointKDTreeImpl::getClosestPointTo(
 	const V3x& point,
 	KDTreeClosestPoint& out_result) const
 {
-	#define CALL_WITH_ARGS getClosestPoint(point, out_result)
-	KD_TREE_IMPL_RETURN_CALL(CALL_WITH_ARGS)
-	#undef CALL_WITH_ARGS
+	#define CLOSEST_POINT_WITH_ARGS getClosestPointTo(point, out_result)
+	KD_TREE_IMPL_CALL_RETURN(CLOSEST_POINT_WITH_ARGS)
+	#undef CLOSEST_POINT_WITH_ARGS
 }
 
 void
 PointKDTreeImpl::dump(ostream& out) const
 {
-	#define CALL_WITH_ARGS dump(out)
-	KD_TREE_IMPL_CALL(CALL_WITH_ARGS)
-	#undef CALL_WITH_ARGS
+	#define DUMP_WITH_ARGS dump(out)
+	KD_TREE_IMPL_CALL(DUMP_WITH_ARGS)
+	#undef DUMP_WITH_ARGS
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,7 +362,7 @@ PointKDTreeImplImpl<uint_t>::buildTree(
 	if (idxBegin >= idxEnd)
 		return InvalidIndex<uint_t>::value;
 
-	// Build Leaf Nodes
+	// Build Leaf Node
 	uint_t size = idxEnd - idxBegin;
 	if (size == 1) {
 		m_arrNodes.emplace_back(KDTreeNode<uint_t>(
@@ -361,11 +373,13 @@ PointKDTreeImplImpl<uint_t>::buildTree(
 		return static_cast<uint_t>(m_arrNodes.size()-1);
 	}
 
+	// Recurse
 	KDTreeNodeAxis nextAxis = static_cast<KDTreeNodeAxis>((axis + 1) % 3);
 	uint_t idxMedian = partitionAroundMedian(idxBegin, idxEnd, axis);
 	uint_t idxLeft = buildTree(idxBegin, idxMedian, nextAxis);
 	uint_t idxRight = buildTree(idxMedian+1, idxEnd, nextAxis);
 
+	// Build Internal Node
 	m_arrNodes.emplace_back(
 		KDTreeNode<uint_t>(idxMedian, idxLeft, idxRight, axis));
 	return static_cast<uint_t>(m_arrNodes.size()-1);
@@ -415,16 +429,15 @@ PointKDTreeImplImpl<uint_t>::getRootNode() const
 
 template <typename uint_t>
 bool
-PointKDTreeImplImpl<uint_t>::getClosestPoint(
+PointKDTreeImplImpl<uint_t>::getClosestPointTo(
 	const V3x& point,
 	KDTreeClosestPoint& out_result) const
 {
 	const KDTreeNode<uint_t>* pRootNode = getRootNode();
 	if (pRootNode == NULL)
 		return false;
-	return pRootNode->getClosestPoint(point, out_result);
+	return pRootNode->getClosestPointTo(point, out_result);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // PointKDTree Methods
@@ -435,49 +448,11 @@ PointKDTree::PointKDTree(const vector<V3x>& arrPoints)
 {
 }
 
-static inline void fillPoints(
-	vector<V3x>& arrPoints,
-	const size_t numPoints)
-{
-	Timer fillTimer("fill points");
-	fillTimer.start();
-
-	srand(1987);
-	arrPoints.reserve(numPoints);
-	for (size_t idx = 0; idx < numPoints; ++idx) {
-		arrPoints.emplace_back(V3x(rand(), rand(), rand()));
-	}
-
-	fillTimer.stop();
-	fillTimer.print();
-}
-
-static inline void buildTree(
-	const vector<V3x>&arrPoints)
-{
-	Timer treeTimer("build kd tree");
-
-	treeTimer.start();
-	PointKDTree kdtree(arrPoints);
-	treeTimer.stop();
-
-	REQUIRE(kdtree.isBalanced());
-
-	treeTimer.print();
-}
-
-unittest 
-{
-	cout << "\n";
-	static const size_t NUM_POINTS = 32770;
-	vector<V3x> arrPoints;
-	fillPoints(arrPoints, NUM_POINTS);
-	buildTree(arrPoints);
-}
-
 PointKDTree::~PointKDTree()
 {
-	delete m_pImpl;
+	// NOTE: To allow ~unique_ptr() to see the complete PointKDTreeImpl type 
+	//       we have to create an explicit destructor for PointKDTree here,
+	//       after PointKDTreeImpl been defined.
 }
 
 void
@@ -493,11 +468,11 @@ PointKDTree::isBalanced() const
 }
 
 bool
-PointKDTree::getClosestPoint(
+PointKDTree::getClosestPointTo(
 	const V3x& point,
 	KDTreeClosestPoint& out_result) const
 {
-	return m_pImpl->getClosestPoint(point, out_result);
+	return m_pImpl->getClosestPointTo(point, out_result);
 }
 
 #pragma warning(pop)
