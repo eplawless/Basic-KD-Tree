@@ -14,6 +14,14 @@ struct KDTreeClosestPoint
 	fpreal distance;
 };
 
+// Splitting Plane Axis
+enum KDTreeAxis 
+{
+	X_AXIS = 0,
+	Y_AXIS = 1,
+	Z_AXIS = 2
+};
+
 class PointKDTree : public Uncopyable 
 {
 public: // methods
@@ -28,7 +36,7 @@ public: // methods
 	void dump(ostream& out) const;
 
 private: // members
-	unique_ptr<PointKDTreeImpl> m_pImpl;
+	const unique_ptr<PointKDTreeImpl> m_pImpl;
 };
 
 /// @{
@@ -69,7 +77,8 @@ static inline unique_ptr<PointKDTree> buildTree(
 	return kdtree;
 }
 
-static inline unique_ptr<PointKDTree> kdTreeTest(size_t numPoints)
+static inline unique_ptr<PointKDTree> 
+createKDTreeTest(size_t numPoints)
 {
 	cout << "\n";
 	vector<V3x> arrPoints;
@@ -77,29 +86,77 @@ static inline unique_ptr<PointKDTree> kdTreeTest(size_t numPoints)
 	return buildTree(arrPoints);
 }
 
-namedtest("empty kd tree") 
+static inline void
+fillPointsAlongAxis(
+	vector<V3x>& arrPoints, 
+	size_t numPoints,
+	KDTreeAxis axis)
 {
-	unique_ptr<PointKDTree> kdtree = kdTreeTest(0);
+	Timer fillTimer("fill points");
+	fillTimer.start();
+
+	arrPoints.clear();
+	arrPoints.reserve(numPoints);
+	int idxBegin = -static_cast<int>(numPoints/2);
+	int idxEnd = idxBegin + numPoints;
+	for (int idx = idxBegin; idx < idxEnd; ++idx) {
+		V3x point(0);
+		point[axis] = idx;
+		arrPoints.emplace_back(point);
+	}
+
+	fillTimer.stop();
+	fillTimer.print();
+}
+
+static void 
+createAxisSplitTest(KDTreeAxis axis)
+{
+	cout << "\n";
+	vector<V3x> arrPoints;
+	fillPointsAlongAxis(arrPoints, 11, axis);
+	auto kdtree = buildTree(arrPoints);
+	cout << "\n";
+	kdtree->dump(cout);
+}
+
+namedtest("x axis splits") 
+{
+	createAxisSplitTest(X_AXIS);
+}
+
+namedtest("y axis splits") 
+{
+	createAxisSplitTest(Y_AXIS);
+}
+
+namedtest("z axis splits") 
+{
+	createAxisSplitTest(Z_AXIS);
+}
+
+namedtest("empty kdtree") 
+{
+	createKDTreeTest(0);
 }
 
 namedtest("thousand point kdtree") 
 {
-	unique_ptr<PointKDTree> kdtree = kdTreeTest(1000);
+	createKDTreeTest(1000);
+}
+
+namedtest("256 thousand point kdtree") 
+{
+	createKDTreeTest(256*1000);
 }
 
 namedtest("million point kdtree") 
 {
-	unique_ptr<PointKDTree> kdtree = kdTreeTest(1000*1000);
+	createKDTreeTest(1000*1000);
 }
 
-namedtest("16 million point kdtree") 
-{
-	unique_ptr<PointKDTree> kdtree = kdTreeTest(16*1000*1000);
-}
-
-namedtest("32 million point kdtree") 
-{
-	unique_ptr<PointKDTree> kdtree = kdTreeTest(32*1000*1000);
+namedtest("16 million point kdtree") {
+	createKDTreeTest(16*1000*1000);
 }
 /// @}
 

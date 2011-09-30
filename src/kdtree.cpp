@@ -3,14 +3,6 @@
 
 #pragma warning(push, 4)
 
-// Splitting Plane Axis
-enum KDTreeNodeAxis 
-{
-	X_AXIS = 0,
-	Y_AXIS = 1,
-	Z_AXIS = 2
-};
-
 /// @{
 /// Helper Macros for Dynamic Index Precision
 /// NOTE: these helpers must all be changed to add/remove an index precision
@@ -60,10 +52,10 @@ public: // methods
 		uint_t idxPoint,
 		uint_t idxLeft,
 		uint_t idxRight,
-		KDTreeNodeAxis axis);
+		KDTreeAxis axis);
 
 	uint_t			getIdxPoint() const { return m_idxPoint; }
-	KDTreeNodeAxis	getAxis() const		{ return m_axis; }
+	KDTreeAxis	getAxis() const		{ return m_axis; }
 	uint_t			getIdxLeft()		{ return m_idxLeft; }
 	uint_t			getIdxRight()		{ return m_idxRight; }
 
@@ -77,7 +69,7 @@ public: // methods
 	void dump(const vector<V3x>& arrPoints, ostream& out) const;
 
 private: // members
-	KDTreeNodeAxis m_axis;
+	KDTreeAxis m_axis;
 	uint_t m_idxPoint;
 	uint_t m_idxLeft;
 	uint_t m_idxRight;
@@ -104,8 +96,11 @@ public: // methods
 
 	uint_t buildTree(
 		uint_t idxBegin,
-		uint_t idxEnd,
-		KDTreeNodeAxis axis);
+		uint_t idxEnd);
+
+	KDTreeAxis getSplitAxis(
+		uint_t idxBegin,
+		uint_t idxEnd) const;
 
 	bool isBalanced() const;
 	bool getClosestPointTo(
@@ -121,7 +116,7 @@ private: // methods
 	inline uint_t partitionAroundMedian(
 		uint_t idxBegin,
 		uint_t idxEnd,
-		KDTreeNodeAxis axis);
+		KDTreeAxis axis);
 
 private: // members
 	KDTreeNodeList m_arrNodes;
@@ -144,7 +139,7 @@ private: // members
 	KDTreeIndexType m_idxType;
 
 #define KD_TREE_IMPL_MEMBER_PTR(bits) \
-	unique_ptr<PointKDTreeImplImpl<uint##bits##_t> > m_pImpl##bits;
+	const unique_ptr<PointKDTreeImplImpl<uint##bits##_t> > m_pImpl##bits;
 
 	KD_TREE_FOREACH_IDX_SIZE(KD_TREE_IMPL_MEMBER_PTR)
 };
@@ -158,7 +153,7 @@ KDTreeNode<uint_t>::KDTreeNode(
 	uint_t idxPoint,
 	uint_t idxLeft,
 	uint_t idxRight,
-	KDTreeNodeAxis axis)
+	KDTreeAxis axis)
 	: m_idxPoint(idxPoint)
 	, m_idxLeft(idxLeft)
 	, m_idxRight(idxRight)
@@ -175,7 +170,7 @@ getIdxString(uint_t idx)
 		return "NONE";
 
 	stringstream ss;
-	ss << idx;
+	ss << static_cast<size_t>(idx);
 	return ss.str();
 }
 
@@ -191,7 +186,7 @@ KDTreeNode<uint_t>::dump(const vector<V3x>& arrPoints, ostream& out) const
 	case Z_AXIS: out << "Z AXIS"; break;
 	}
 	size_t idxPoint = static_cast<size_t>(m_idxPoint);
-	out << ", POINT " << m_idxPoint << ": " << arrPoints[idxPoint] << "\n";
+	out << ", POINT " << idxPoint << ": " << arrPoints[idxPoint] << "\n";
 	out << "  CHILDREN: " << getIdxString(m_idxLeft) << " "
 		<< getIdxString(m_idxRight) << "\n";
 }
@@ -265,8 +260,9 @@ KDTreeNode<uint_t>::getClosestPointTo(
 	numPoints < numeric_limits<uint##bits##_t>::max()
 #define KD_TREE_INIT_IMPL(bits) \
 	if (KD_TREE_IDX_SIZE_IS_ENOUGH(bits)) { \
-		m_pImpl##bits.reset( \
-			new PointKDTreeImplImpl<uint##bits##_t>(arrPoints)); \
+		const_cast<unique_ptr<PointKDTreeImplImpl<uint##bits##_t> >&> \
+			(m_pImpl##bits).reset( \
+				new PointKDTreeImplImpl<uint##bits##_t>(arrPoints)); \
 		m_idxType = IDX_TYPE_##bits; \
 		return; \
 	}
@@ -312,9 +308,7 @@ PointKDTreeImpl::getClosestPointTo(
 void
 PointKDTreeImpl::dump(ostream& out) const
 {
-	#define DUMP_WITH_ARGS dump(out)
-	KD_TREE_IMPL_CALL(DUMP_WITH_ARGS)
-	#undef DUMP_WITH_ARGS
+	KD_TREE_IMPL_CALL(dump(out))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,12 +316,13 @@ PointKDTreeImpl::dump(ostream& out) const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename uint_t>
-PointKDTreeImplImpl<uint_t>::PointKDTreeImplImpl(const vector<V3x>& arrPoints)
+PointKDTreeImplImpl<uint_t>::PointKDTreeImplImpl(
+	const vector<V3x>& arrPoints)
 	: m_arrPoints(arrPoints)
 {
 	uint_t numPoints = static_cast<uint_t>(m_arrPoints.size());
-	m_arrNodes.reserve(static_cast<size_t>(numPoints));
-	buildTree(0, numPoints, X_AXIS);
+	m_arrNodes.reserve(m_arrPoints.size());
+	buildTree(0, numPoints);
 }
 
 template <typename uint_t>
@@ -335,7 +330,7 @@ uint_t
 PointKDTreeImplImpl<uint_t>::partitionAroundMedian(
 	uint_t idxBegin,
 	uint_t idxEnd,
-	KDTreeNodeAxis axis)
+	KDTreeAxis axis)
 {
 	uint_t halfSize = (idxEnd - idxBegin) / 2;
 	uint_t idxMedian = idxBegin + halfSize;
@@ -353,14 +348,56 @@ PointKDTreeImplImpl<uint_t>::partitionAroundMedian(
 }
 
 template <typename uint_t>
+KDTreeAxis
+PointKDTreeImplImpl<uint_t>::getSplitAxis(
+	uint_t idxBegin,
+	uint_t idxEnd) const
+{
+	assert(idxBegin < idxEnd);
+
+	if (idxBegin+1 == idxEnd)
+		return X_AXIS;
+
+	V3x firstPoint = m_arrPoints[static_cast<size_t>(idxBegin)];
+	fpreal xMin = firstPoint.x;
+	fpreal yMin = firstPoint.y;
+	fpreal zMin = firstPoint.z;
+	fpreal xMax = firstPoint.x;
+	fpreal yMax = firstPoint.y;
+	fpreal zMax = firstPoint.z;
+
+	auto itGlobalBegin = begin(m_arrPoints);
+	auto itBegin = itGlobalBegin + static_cast<size_t>(idxBegin) + 1;
+	auto itEnd = itGlobalBegin + static_cast<size_t>(idxEnd);
+	for_each(itBegin, itEnd, [&](const V3x& point) {
+		xMin = min<fpreal>(point.x, xMin);
+		yMin = min<fpreal>(point.y, yMin);
+		zMin = min<fpreal>(point.z, zMin);
+		xMax = max<fpreal>(point.x, xMax);
+		yMax = max<fpreal>(point.y, yMax);
+		zMax = max<fpreal>(point.z, zMax);
+	});
+
+	fpreal xSize = xMax - xMin;
+	fpreal ySize = yMax - yMin;
+	fpreal zSize = zMax - zMin;
+
+	return (ySize > xSize && ySize > zSize) ? Y_AXIS :
+		(zSize > xSize && zSize > ySize) ? Z_AXIS :
+			X_AXIS;
+}
+
+template <typename uint_t>
 uint_t 
 PointKDTreeImplImpl<uint_t>::buildTree(
 	uint_t idxBegin,
-	uint_t idxEnd,
-	KDTreeNodeAxis axis)
+	uint_t idxEnd)
 {
 	if (idxBegin >= idxEnd)
 		return InvalidIndex<uint_t>::value;
+
+	// TODO: use better split heuristic
+	KDTreeAxis axis = getSplitAxis(idxBegin, idxEnd);
 
 	// Build Leaf Node
 	uint_t size = idxEnd - idxBegin;
@@ -374,10 +411,9 @@ PointKDTreeImplImpl<uint_t>::buildTree(
 	}
 
 	// Recurse
-	KDTreeNodeAxis nextAxis = static_cast<KDTreeNodeAxis>((axis + 1) % 3);
 	uint_t idxMedian = partitionAroundMedian(idxBegin, idxEnd, axis);
-	uint_t idxLeft = buildTree(idxBegin, idxMedian, nextAxis);
-	uint_t idxRight = buildTree(idxMedian+1, idxEnd, nextAxis);
+	uint_t idxLeft = buildTree(idxBegin, idxMedian);
+	uint_t idxRight = buildTree(idxMedian+1, idxEnd);
 
 	// Build Internal Node
 	m_arrNodes.emplace_back(
