@@ -569,6 +569,7 @@ template <typename uint_t>
 static uint_t
 getIdxOppositeSide(uint_t idxLastNode, const KDTreeNode<uint_t>& node)
 {
+	assert(idxLastNode != IDX_NONE);
 	uint_t idxLeft = node.getIdxLeft();
 	uint_t idxRight = node.getIdxRight();
 	assert(idxLastNode == idxLeft || idxLastNode == idxRight);
@@ -613,6 +614,8 @@ PointKDTreeImplImpl<uint_t>::getClosestPointTo(
 
 		pop(idxLastNode, nodeIdxStack);
 	}
+
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
