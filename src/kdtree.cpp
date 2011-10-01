@@ -54,19 +54,15 @@ public: // methods
 		uint_t idxRight,
 		KDTreeAxis axis);
 
-	uint_t			getIdxPoint() const { return m_idxPoint; }
-	KDTreeAxis	getAxis() const		{ return m_axis; }
-	uint_t			getIdxLeft()		{ return m_idxLeft; }
-	uint_t			getIdxRight()		{ return m_idxRight; }
+	uint_t		getIdxPoint()  const { return m_idxPoint; }
+	KDTreeAxis	getAxis()      const { return m_axis; }
+	uint_t		getIdxLeft()   const { return m_idxLeft; }
+	uint_t		getIdxRight()  const { return m_idxRight; }
 
-	bool getClosestPointTo(
-		const V3x& point,
-		KDTreeClosestPoint& out_result) const;
+	uint_t		getSize(const KDTreeNodeList& arrNodes) const;
+	bool		isBalanced(const KDTreeNodeList& arrNodes) const;
 
-	uint_t			getSize(const KDTreeNodeList& arrNodes) const;
-	bool			isBalanced(const KDTreeNodeList& arrNodes) const;
-
-	void dump(const vector<V3x>& arrPoints, ostream& out) const;
+	void		dump(const vector<V3x>& arrPoints, ostream& out) const;
 
 private: // members
 	KDTreeAxis m_axis;
@@ -91,31 +87,37 @@ class PointKDTreeImplImpl
 public: // types
 	typedef vector<KDTreeNode<uint_t> > KDTreeNodeList;
 
+public: // static members
+	static const uint_t IDX_NONE = InvalidIndex<uint_t>::value;
+
 public: // methods
 	PointKDTreeImplImpl(const vector<V3x>& arrPoints);
 
-	uint_t buildTree(
-		uint_t idxBegin,
-		uint_t idxEnd);
-
-	KDTreeAxis getSplitAxis(
-		uint_t idxBegin,
-		uint_t idxEnd) const;
-
+	uint_t buildTree(uint_t idxBegin, uint_t idxEnd);
 	bool isBalanced() const;
-	bool getClosestPointTo(
-		const V3x& point,
-		KDTreeClosestPoint& out_result) const;
-
+	bool getClosestPointTo(const V3x& point, KDTreeClosestPoint& result) const;
 	void dump(ostream& out = cerr) const;
 
 private: // methods
 
-	const KDTreeNode<uint_t>* getRootNode() const;
+	KDTreeAxis chooseSplitAxis(uint_t idxBegin, uint_t idxEnd) const;
 
-	inline uint_t partitionAroundMedian(
-		uint_t idxBegin,
-		uint_t idxEnd,
+	void initClosestPointStack(vector<uint_t>& nodeIdxStack) const;
+	void walkToLeafNode(vector<uint_t>& nodeIdxStack, const V3x& point) const;
+	const KDTreeNode<uint_t>* getRootNode() const;
+	uint_t getIdxRootNode() const;
+	const KDTreeNode<uint_t>& getCurrentNode(
+		vector<uint_t>& nodeIdxStack) const;
+	uint_t getIdxNextNode(const KDTreeNode<uint_t>& node,
+		const V3x& point) const;
+	bool updateClosestPoint(
+		vector<uint_t>& nodeIdxStack,
+		const V3x& point,
+		KDTreeClosestPoint& result) const;
+	fpreal getDistanceToPlane2(const KDTreeNode<uint_t>& node,
+		const V3x& point) const;
+
+	uint_t partitionAroundMedian(uint_t idxBegin, uint_t idxEnd,
 		KDTreeAxis axis);
 
 private: // members
@@ -132,7 +134,7 @@ public: // methods
 	bool isBalanced() const;
 	bool getClosestPointTo(
 		const V3x& point,
-		KDTreeClosestPoint& out_result) const;
+		KDTreeClosestPoint& result) const;
 	void dump(ostream& out) const;
 
 private: // members
@@ -241,17 +243,6 @@ KDTreeNode<uint_t>::getSize(const KDTreeNodeList& arrNodes) const
 		+ getChildSize(arrNodes, m_idxRight);
 }
 
-template <typename uint_t>
-bool
-KDTreeNode<uint_t>::getClosestPointTo(
-	const V3x& point,
-	KDTreeClosestPoint& out_result) const
-{
-	// TODO: implement
-	UNUSED(point);
-	UNUSED(out_result);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // PointKDTreeImpl Methods
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,9 +289,9 @@ PointKDTreeImpl::isBalanced() const
 bool
 PointKDTreeImpl::getClosestPointTo(
 	const V3x& point,
-	KDTreeClosestPoint& out_result) const
+	KDTreeClosestPoint& result) const
 {
-	#define CLOSEST_POINT_WITH_ARGS getClosestPointTo(point, out_result)
+	#define CLOSEST_POINT_WITH_ARGS getClosestPointTo(point, result)
 	KD_TREE_IMPL_CALL_RETURN(CLOSEST_POINT_WITH_ARGS)
 	#undef CLOSEST_POINT_WITH_ARGS
 }
@@ -349,7 +340,7 @@ PointKDTreeImplImpl<uint_t>::partitionAroundMedian(
 
 template <typename uint_t>
 KDTreeAxis
-PointKDTreeImplImpl<uint_t>::getSplitAxis(
+PointKDTreeImplImpl<uint_t>::chooseSplitAxis(
 	uint_t idxBegin,
 	uint_t idxEnd) const
 {
@@ -390,35 +381,31 @@ PointKDTreeImplImpl<uint_t>::getSplitAxis(
 template <typename uint_t>
 uint_t 
 PointKDTreeImplImpl<uint_t>::buildTree(
-	uint_t idxBegin,
-	uint_t idxEnd)
+	uint_t idxPtBegin,
+	uint_t idxPtEnd)
 {
-	if (idxBegin >= idxEnd)
-		return InvalidIndex<uint_t>::value;
+	if (idxPtBegin >= idxPtEnd)
+		return IDX_NONE;
 
-	// TODO: use better split heuristic
-	KDTreeAxis axis = getSplitAxis(idxBegin, idxEnd);
+	KDTreeAxis axis = chooseSplitAxis(idxPtBegin, idxPtEnd);
 
 	// Build Leaf Node
-	uint_t size = idxEnd - idxBegin;
+	uint_t size = idxPtEnd - idxPtBegin;
 	if (size == 1) {
-		m_arrNodes.emplace_back(KDTreeNode<uint_t>(
-			idxBegin,
-			InvalidIndex<uint_t>::value,
-			InvalidIndex<uint_t>::value,
-			axis));
-		return static_cast<uint_t>(m_arrNodes.size()-1);
+		m_arrNodes.emplace_back(
+			KDTreeNode<uint_t>(idxPtBegin, IDX_NONE, IDX_NONE, axis));
+		return getIdxRootNode();
 	}
 
 	// Recurse
-	uint_t idxMedian = partitionAroundMedian(idxBegin, idxEnd, axis);
-	uint_t idxLeft = buildTree(idxBegin, idxMedian);
-	uint_t idxRight = buildTree(idxMedian+1, idxEnd);
+	uint_t idxPtMedian = partitionAroundMedian(idxPtBegin, idxPtEnd, axis);
+	uint_t idxNodeLeft = buildTree(idxPtBegin, idxPtMedian);
+	uint_t idxNodeRight = buildTree(idxPtMedian+1, idxPtEnd);
 
 	// Build Internal Node
 	m_arrNodes.emplace_back(
-		KDTreeNode<uint_t>(idxMedian, idxLeft, idxRight, axis));
-	return static_cast<uint_t>(m_arrNodes.size()-1);
+		KDTreeNode<uint_t>(idxPtMedian, idxNodeLeft, idxNodeRight, axis));
+	return getIdxRootNode();
 }
 
 template <typename uint_t>
@@ -464,15 +451,168 @@ PointKDTreeImplImpl<uint_t>::getRootNode() const
 }
 
 template <typename uint_t>
+uint_t
+PointKDTreeImplImpl<uint_t>::getIdxRootNode() const
+{
+	assert(!m_arrNodes.empty());
+	return static_cast<uint_t>(m_arrNodes.size()-1);
+}
+
+template <typename uint_t>
+void
+PointKDTreeImplImpl<uint_t>::initClosestPointStack(
+	vector<uint_t>& nodeIdxStack) const
+{
+	size_t numPoints = m_arrPoints.size();
+	size_t log2NumPoints = static_cast<size_t>(
+		log(static_cast<double>(numPoints)) / log(2.0));
+	nodeIdxStack.reserve(log2NumPoints);
+	nodeIdxStack.push_back(getIdxRootNode());
+}
+
+template <typename uint_t>
+static inline bool
+isLeafNode(const KDTreeNode<uint_t>& node)
+{
+	return node.getIdxLeft() == InvalidIndex<uint_t>::value
+		&& node.getIdxRight() == InvalidIndex<uint_t>::value;
+}
+
+template <typename uint_t>
+uint_t
+PointKDTreeImplImpl<uint_t>::getIdxNextNode(
+	const KDTreeNode<uint_t>& node,
+	const V3x& point) const
+{
+	assert(!isLeafNode(node));
+	uint_t idxLeft = node.getIdxLeft();
+	uint_t idxRight = node.getIdxRight();
+
+	if (idxLeft == InvalidIndex<uint_t>::value)
+		return idxRight;
+	if (idxRight == InvalidIndex<uint_t>::value)
+		return idxLeft;
+
+	KDTreeAxis axis = node.getAxis();
+	size_t idxNodePoint = static_cast<size_t>(node.getIdxPoint());
+	const V3x& nodePoint = m_arrPoints[idxNodePoint];
+	return (point[axis] <= nodePoint[axis]) ? idxLeft : idxRight;
+}
+
+template <typename uint_t>
+const KDTreeNode<uint_t>&
+PointKDTreeImplImpl<uint_t>::getCurrentNode(
+	vector<uint_t>& nodeIdxStack) const
+{
+	assert(!nodeIdxStack.empty());
+	size_t idx = static_cast<size_t>(nodeIdxStack.back());
+	return m_arrNodes[idx];
+}
+
+template <typename uint_t>
+void
+PointKDTreeImplImpl<uint_t>::walkToLeafNode(
+	vector<uint_t>& nodeIdxStack,
+	const V3x& point) const
+{
+	while (!isLeafNode(getCurrentNode(nodeIdxStack))) {
+		const KDTreeNode<uint_t>& node = getCurrentNode(nodeIdxStack);
+		nodeIdxStack.push_back(getIdxNextNode(node, point));
+	}
+}
+
+template <typename uint_t>
+bool
+PointKDTreeImplImpl<uint_t>::updateClosestPoint(
+	vector<uint_t>& nodeIdxStack,
+	const V3x& point,
+	KDTreeClosestPoint& result) const
+{
+	const KDTreeNode<uint_t>& node = getCurrentNode(nodeIdxStack);
+	size_t idxPoint = static_cast<size_t>(node.getIdxPoint());
+	const V3x& nodePoint = m_arrPoints[idxPoint];
+
+	V3x diff(point);
+	diff -= nodePoint;
+	fpreal distance2 = diff.length2();
+
+	if (distance2 >= result.distance2)
+		return false;
+
+	result.point = nodePoint;
+	result.distance2 = distance2;
+	return true;
+}
+
+template <typename uint_t>
+fpreal
+PointKDTreeImplImpl<uint_t>::getDistanceToPlane2(
+	const KDTreeNode<uint_t>& node, const V3x& point) const
+{
+	auto axis = node.getAxis();
+	size_t idxNodePoint = static_cast<size_t>(node.getIdxPoint());
+	const V3x& nodePoint = m_arrPoints[idxNodePoint];
+	fpreal sqrtResult = point[axis] - nodePoint[axis];
+	return sqrtResult * sqrtResult;
+}
+
+template <typename uint_t>
+static inline void 
+pop(uint_t& idxLastNode, vector<uint_t>& nodeIdxStack)
+{
+	assert(!nodeIdxStack.empty());
+	idxLastNode = nodeIdxStack.back();
+	nodeIdxStack.pop_back();
+}
+
+template <typename uint_t>
+static uint_t
+getIdxOppositeSide(uint_t idxLastNode, const KDTreeNode<uint_t>& node)
+{
+	uint_t idxLeft = node.getIdxLeft();
+	uint_t idxRight = node.getIdxRight();
+	assert(idxLastNode == idxLeft || idxLastNode == idxRight);
+	return (idxLastNode == idxLeft) ? idxRight : idxLeft;
+}
+
+template <typename uint_t>
 bool
 PointKDTreeImplImpl<uint_t>::getClosestPointTo(
 	const V3x& point,
-	KDTreeClosestPoint& out_result) const
+	KDTreeClosestPoint& result) const
 {
-	const KDTreeNode<uint_t>* pRootNode = getRootNode();
-	if (pRootNode == NULL)
+	if (m_arrNodes.empty())
 		return false;
-	return pRootNode->getClosestPointTo(point, out_result);
+
+	vector<uint_t> nodeIdxStack;
+	initClosestPointStack(nodeIdxStack);
+	walkToLeafNode(nodeIdxStack, point);
+	updateClosestPoint(nodeIdxStack, point, result);
+
+	uint_t idxLastNode = IDX_NONE;
+	pop(idxLastNode, nodeIdxStack);
+	while (!nodeIdxStack.empty()) {
+		bool isCloser = updateClosestPoint(nodeIdxStack, point, result);
+		if (!isCloser) {
+			pop(idxLastNode, nodeIdxStack);
+			continue;
+		}
+
+		const KDTreeNode<uint_t>& node = getCurrentNode(nodeIdxStack);
+		fpreal distanceToPlane2 = getDistanceToPlane2(node, point);
+		if (distanceToPlane2 >= result.distance2) {
+			pop(idxLastNode, nodeIdxStack);
+			continue;
+		}
+
+		uint_t idxOppositeSide = getIdxOppositeSide(idxLastNode, node);
+		if (idxOppositeSide != IDX_NONE) {
+			walkToLeafNode(nodeIdxStack, point);
+			continue;
+		}
+
+		pop(idxLastNode, nodeIdxStack);
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,9 +646,9 @@ PointKDTree::isBalanced() const
 bool
 PointKDTree::getClosestPointTo(
 	const V3x& point,
-	KDTreeClosestPoint& out_result) const
+	KDTreeClosestPoint& result) const
 {
-	return m_pImpl->getClosestPointTo(point, out_result);
+	return m_pImpl->getClosestPointTo(point, result);
 }
 
 #pragma warning(pop)

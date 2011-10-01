@@ -11,7 +11,12 @@ class PointKDTreeImpl;
 struct KDTreeClosestPoint
 {
 	V3x point;
-	fpreal distance;
+	fpreal distance2;
+
+	KDTreeClosestPoint() 
+		: point(numeric_limits<fpreal>::max())
+		, distance2(numeric_limits<fpreal>::max())
+	{}
 };
 
 // Splitting Plane Axis

@@ -22,6 +22,7 @@ typedef Vec4<fpreal> V4x;
 #include <string>
 #include <sstream>
 #include <vector>
+#include <stack>
 #include <map>
 #include <iterator>
 #include <limits>
