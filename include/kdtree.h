@@ -58,7 +58,10 @@ static inline void fillPoints(
 	arrPoints.clear();
 	arrPoints.reserve(numPoints);
 	for (size_t idx = 0; idx < numPoints; ++idx) {
-		arrPoints.emplace_back(V3x(rand(), rand(), rand()));
+		arrPoints.emplace_back(V3x(
+			static_cast<fpreal>(rand()),
+			static_cast<fpreal>(rand()),
+			static_cast<fpreal>(rand())));
 	}
 
 	fillTimer.stop();
@@ -107,7 +110,7 @@ fillPointsAlongAxis(
 	int idxEnd = idxBegin + numPoints;
 	for (int idx = idxBegin; idx < idxEnd; ++idx) {
 		V3x point(0);
-		point[axis] = idx;
+		point[axis] = static_cast<fpreal>(idx);
 		arrPoints.emplace_back(point);
 	}
 
@@ -129,11 +132,16 @@ queryTreeAlongAxis(
 	for (int idx = idxBegin; idx < idxEnd; ++idx) {
 		KDTreeClosestPoint result;
 		V3x queryPoint(0);
-		queryPoint[axis] = idx+0.025;
+		queryPoint[axis] = static_cast<fpreal>(idx+0.025);
 		bool gotPoint = tree->getClosestPointTo(queryPoint, result);
-		assert(gotPoint);
-		cout << "closest point: " << result.point << " (dist2: " 
-			<< result.distance2 << ")" << endl;
+		REQUIRE(gotPoint);
+
+		V3x expectedResult(0);
+		expectedResult[axis] = static_cast<fpreal>(idx);
+		REQUIRE_EQUAL(result.point, expectedResult);
+
+		cout << "closest point to " << queryPoint << ": " << result.point 
+			<< " (dist2: " << result.distance2 << ")" << endl;
 	}
 	queryTimer.stop();
 	queryTimer.print();
@@ -149,7 +157,7 @@ createAxisSplitTest(KDTreeAxis axis)
 	auto kdtree = buildTree(arrPoints);
 	cout << "\n";
 	kdtree->dump(cout);
-	queryTreeAlongAxis(kdtree, numPoints+2, axis);
+	queryTreeAlongAxis(kdtree, numPoints, axis);
 	return kdtree;
 }
 
