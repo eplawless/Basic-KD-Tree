@@ -119,6 +119,8 @@ private: // methods
 		KDTreeClosestPoint& result) const;
 	fpreal getDistanceToPlane2(const KDTreeNode<uint_t>& node,
 		const V3x& point) const;
+	uint_t getIdxPointSide(const KDTreeNode<uint_t>& node, 
+		const V3x& point) const;
 
 	uint_t partitionAroundMedian(uint_t idxBegin, uint_t idxEnd,
 		KDTreeAxis axis);
@@ -604,6 +606,18 @@ getIdxOppositeSide(uint_t idxLastNode, const KDTreeNode<uint_t>& node)
 }
 
 template <typename uint_t>
+uint_t
+PointKDTreeImplImpl<uint_t>::getIdxPointSide(
+	const KDTreeNode<uint_t>& node,
+	const V3x& point) const
+{
+	size_t idxNodePoint = static_cast<size_t>(node.getIdxPoint());
+	const V3x& nodePoint = m_arrPoints[idxNodePoint];
+	KDTreeAxis axis = node.getAxis();
+	return (point[axis] < nodePoint[axis]) ? node.getIdxLeft() : node.getIdxRight();
+}
+
+template <typename uint_t>
 bool
 PointKDTreeImplImpl<uint_t>::getClosestPointTo(
 	const V3x& point,
@@ -620,12 +634,7 @@ PointKDTreeImplImpl<uint_t>::getClosestPointTo(
 	uint_t idxLastNode = IDX_NONE;
 	pop(idxLastNode, nodeIdxStack);
 	while (!nodeIdxStack.empty()) {
-		bool isCloser = updateClosestPoint(nodeIdxStack, point, result);
-		if (!isCloser) {
-			pop(idxLastNode, nodeIdxStack);
-			continue;
-		}
-
+		updateClosestPoint(nodeIdxStack, point, result);
 		const KDTreeNode<uint_t>& node = getCurrentNode(nodeIdxStack);
 		fpreal distanceToPlane2 = getDistanceToPlane2(node, point);
 		if (distanceToPlane2 >= result.distance2) {
@@ -634,6 +643,12 @@ PointKDTreeImplImpl<uint_t>::getClosestPointTo(
 		}
 
 		uint_t idxOppositeSide = getIdxOppositeSide(idxLastNode, node);
+		uint_t idxPointSide = getIdxPointSide(node, point);
+		if (idxOppositeSide == idxPointSide) {
+			pop(idxLastNode, nodeIdxStack);
+			continue;
+		}
+
 		if (idxOppositeSide != IDX_NONE) {
 			walkToLeafNode(nodeIdxStack, point);
 			continue;
