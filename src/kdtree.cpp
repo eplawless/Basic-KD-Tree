@@ -92,6 +92,7 @@ public: // static members
 
 public: // methods
 	PointKDTreeImplImpl(const vector<V3x>& arrPoints);
+	PointKDTreeImplImpl(vector<V3x>&& arrPoints);
 
 	uint_t buildTree(uint_t idxBegin, uint_t idxEnd);
 	bool isBalanced() const;
@@ -99,6 +100,8 @@ public: // methods
 	void dump(ostream& out = cerr) const;
 
 private: // methods
+
+	void init();
 
 	KDTreeAxis chooseSplitAxis(uint_t idxBegin, uint_t idxEnd) const;
 
@@ -130,6 +133,7 @@ class PointKDTreeImpl : public Uncopyable
 {
 public: // methods
 	PointKDTreeImpl(const vector<V3x>& arrPoints);
+	PointKDTreeImpl(vector<V3x>&& arrPoints);
 
 	bool isBalanced() const;
 	bool getClosestPointTo(
@@ -249,7 +253,7 @@ KDTreeNode<uint_t>::getSize(const KDTreeNodeList& arrNodes) const
 
 #define KD_TREE_IDX_SIZE_IS_ENOUGH(bits) \
 	numPoints < numeric_limits<uint##bits##_t>::max()
-#define KD_TREE_INIT_IMPL(bits) \
+#define KD_TREE_INIT_IMPL(bits, arrPoints) \
 	if (KD_TREE_IDX_SIZE_IS_ENOUGH(bits)) { \
 		const_cast<unique_ptr<PointKDTreeImplImpl<uint##bits##_t> >&> \
 			(m_pImpl##bits).reset( \
@@ -262,8 +266,16 @@ PointKDTreeImpl::PointKDTreeImpl(const vector<V3x>& arrPoints)
 	: m_idxType(IDX_TYPE_INVALID)
 {
 	size_t numPoints = arrPoints.size();
-	KD_TREE_FOREACH_IDX_SIZE(KD_TREE_INIT_IMPL)
+	KD_TREE_FOREACH_IDX_SIZE_ARG1(KD_TREE_INIT_IMPL, arrPoints)
 }
+
+PointKDTreeImpl::PointKDTreeImpl(vector<V3x>&& arrPoints)
+	: m_idxType(IDX_TYPE_INVALID)
+{
+	size_t numPoints = arrPoints.size();
+	KD_TREE_FOREACH_IDX_SIZE_ARG1(KD_TREE_INIT_IMPL, move(arrPoints))
+}
+
 
 #define KD_TREE_IMPL_CALL_HELPER(bits, prefix, call) \
 	case IDX_TYPE_##bits: prefix m_pImpl##bits->call; break; \
@@ -310,6 +322,21 @@ template <typename uint_t>
 PointKDTreeImplImpl<uint_t>::PointKDTreeImplImpl(
 	const vector<V3x>& arrPoints)
 	: m_arrPoints(arrPoints)
+{
+	init();
+}
+
+template <typename uint_t>
+PointKDTreeImplImpl<uint_t>::PointKDTreeImplImpl(
+	vector<V3x>&& arrPoints)
+	: m_arrPoints(move(arrPoints))
+{
+	init();
+}
+
+template <typename uint_t>
+void
+PointKDTreeImplImpl<uint_t>::init()
 {
 	uint_t numPoints = static_cast<uint_t>(m_arrPoints.size());
 	m_arrNodes.reserve(m_arrPoints.size());
@@ -626,6 +653,13 @@ PointKDTree::PointKDTree(const vector<V3x>& arrPoints)
 	: m_pImpl(new PointKDTreeImpl(arrPoints))
 {
 }
+
+
+PointKDTree::PointKDTree(vector<V3x>&& arrPoints)
+	: m_pImpl(new PointKDTreeImpl(move(arrPoints)))
+{
+}
+
 
 PointKDTree::~PointKDTree()
 {

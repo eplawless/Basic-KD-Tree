@@ -31,6 +31,7 @@ class PointKDTree : public Uncopyable
 {
 public: // methods
 	PointKDTree(const vector<V3x>& arrPoints);
+	PointKDTree(vector<V3x>&& arrPoints);
 	~PointKDTree();
 
 	bool getClosestPointTo(
@@ -65,11 +66,11 @@ static inline void fillPoints(
 }
 
 static inline unique_ptr<PointKDTree> buildTree(
-	const vector<V3x>& arrPoints)
+	vector<V3x>& arrPoints)
 {
 	Timer treeTimer("build kd tree");
 	treeTimer.start();
-	unique_ptr<PointKDTree> kdtree(new PointKDTree(arrPoints));
+	unique_ptr<PointKDTree> kdtree(new PointKDTree(move(arrPoints)));
 	treeTimer.stop();
 	treeTimer.print();
 
