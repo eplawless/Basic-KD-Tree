@@ -636,15 +636,13 @@ PointKDTreeImplImpl<uint_t>::getClosestPointTo(
 	while (!nodeIdxStack.empty()) {
 		updateClosestPoint(nodeIdxStack, point, result);
 		const KDTreeNode<uint_t>& node = getCurrentNode(nodeIdxStack);
-		fpreal distanceToPlane2 = getDistanceToPlane2(node, point);
-		if (distanceToPlane2 >= result.distance2) {
+		if (getDistanceToPlane2(node, point) >= result.distance2) {
 			pop(idxLastNode, nodeIdxStack);
 			continue;
 		}
 
 		uint_t idxOppositeSide = getIdxOppositeSide(idxLastNode, node);
-		uint_t idxPointSide = getIdxPointSide(node, point);
-		if (idxOppositeSide == idxPointSide) {
+		if (idxOppositeSide == getIdxPointSide(node, point)) {
 			pop(idxLastNode, nodeIdxStack);
 			continue;
 		}
